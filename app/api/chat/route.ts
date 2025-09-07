@@ -7,25 +7,23 @@ function validateOrigin(request: NextRequest): boolean {
   const referer = request.headers.get('referer');
   
   const allowedOrigins = [
-    'https://dllmchat.vercel.app', 
+    'https://dllmchat.vercel.app'
   ];
 
-  // Check origin header
-  if (origin && !allowedOrigins.includes(origin)) {
-    return false;
+  // If origin header exists, it MUST be in allowed list
+  if (origin) {
+    return allowedOrigins.includes(origin);
   }
 
-  // Additional referer validation for extra security
+  // If no origin but referer exists, referer MUST be valid (same-origin requests)
   if (referer) {
-    const isValidReferer = allowedOrigins.some(allowedOrigin => 
+    return allowedOrigins.some(allowedOrigin => 
       referer.startsWith(allowedOrigin)
     );
-    if (!isValidReferer) {
-      return false;
-    }
   }
 
-  return true;
+  // SECURITY: Block requests without proper origin or referer headers
+  return false;
 }
 
 // Handle preflight OPTIONS requests

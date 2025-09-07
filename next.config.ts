@@ -39,7 +39,7 @@ const nextConfig: NextConfig = {
           }
         ]
       },
-      // Strict CORS for API routes - only allow same-origin requests
+      // Strict CORS for API routes - only allow our domain
       {
         source: '/api/:path*',
         headers: [
@@ -49,7 +49,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Access-Control-Allow-Methods',
-            value: 'POST'
+            value: 'POST, OPTIONS'
           },
           {
             key: 'Access-Control-Allow-Headers',
@@ -58,6 +58,10 @@ const nextConfig: NextConfig = {
           {
             key: 'Access-Control-Allow-Credentials',
             value: 'true'
+          },
+          {
+            key: 'Access-Control-Max-Age',
+            value: '86400'
           }
         ]
       }
@@ -74,8 +78,7 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
   },
   
-  // Output configuration for better performance
-  output: 'standalone',
+  // Output configuration removed for Vercel compatibility
 };
 
 export default nextConfig;
