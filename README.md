@@ -1,6 +1,8 @@
-# Next.js dLLM Chat Example
+# dLLM Chat - AI Powered Conversational Interface
 
-This directory contains a full-featured chat application built with Next.js, TypeScript, and Tailwind CSS. It demonstrates how to build a modern, streaming-first chat interface for Inception Labs's dLLM models.
+**Experience the future of AI conversation with streaming and diffusing response modes**
+
+A modern, production-ready chat application built with Next.js that showcases Inception Labs's dLLM models. Features real-time streaming responses and innovative diffusing mode where AI refines answers dynamically.
 
 ## Demo Video
 https://github.com/user-attachments/assets/646b2b61-3ae7-42d8-91bd-28699df7b674
