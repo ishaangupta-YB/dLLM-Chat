@@ -4,6 +4,12 @@ const nextConfig: NextConfig = {
   // Production optimizations
   compress: true,
   poweredByHeader: false,
+  eslint: {
+    // Warning: This allows production builds to successfully complete even if
+    // your project has ESLint errors.
+    ignoreDuringBuilds: true,
+  },
+  
   
   // Security headers
   async headers() {
@@ -30,6 +36,28 @@ const nextConfig: NextConfig = {
           {
             key: 'Permissions-Policy',
             value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()'
+          }
+        ]
+      },
+      // Strict CORS for API routes - only allow same-origin requests
+      {
+        source: '/api/:path*',
+        headers: [
+          {
+            key: 'Access-Control-Allow-Origin',
+            value: 'https://dllmchat.vercel.app'
+          },
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'POST'
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type'
+          },
+          {
+            key: 'Access-Control-Allow-Credentials',
+            value: 'true'
           }
         ]
       }

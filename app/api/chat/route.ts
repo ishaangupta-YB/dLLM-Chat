@@ -1,8 +1,61 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ChatMode } from '@/lib/types';
 
+// CORS validation function
+function validateOrigin(request: NextRequest): boolean {
+  const origin = request.headers.get('origin');
+  const referer = request.headers.get('referer');
+  
+  const allowedOrigins = [
+    'https://dllmchat.vercel.app', 
+  ];
+
+  // Check origin header
+  if (origin && !allowedOrigins.includes(origin)) {
+    return false;
+  }
+
+  // Additional referer validation for extra security
+  if (referer) {
+    const isValidReferer = allowedOrigins.some(allowedOrigin => 
+      referer.startsWith(allowedOrigin)
+    );
+    if (!isValidReferer) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Handle preflight OPTIONS requests
+export async function OPTIONS(request: NextRequest) {
+  if (!validateOrigin(request)) {
+    return new NextResponse(null, { status: 403 });
+  }
+
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': request.headers.get('origin') || 'https://dllmchat.vercel.app',
+      'Access-Control-Allow-Methods': 'POST',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Max-Age': '86400'
+    }
+  });
+}
+
 export async function POST(request: NextRequest) {
   try {
+    // Validate origin for security
+    if (!validateOrigin(request)) {
+      return NextResponse.json(
+        { error: 'Forbidden: Invalid origin' },
+        { status: 403 }
+      );
+    }
+
     // Read API key from environment variables - secure for production
     const apiKey = process.env.DLLM_API_KEY;
     
@@ -10,7 +63,13 @@ export async function POST(request: NextRequest) {
       console.error('DLLM_API_KEY environment variable is not set');
       return NextResponse.json(
         { error: 'Server configuration error: API key not configured' },
-        { status: 500 }
+        { 
+          status: 500,
+          headers: {
+            'Access-Control-Allow-Origin': request.headers.get('origin') || 'https://dllmchat.vercel.app',
+            'Access-Control-Allow-Credentials': 'true',
+          }
+        }
       );
     }
 
@@ -109,6 +168,8 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
+        'Access-Control-Allow-Origin': request.headers.get('origin') || 'https://dllmchat.vercel.app',
+        'Access-Control-Allow-Credentials': 'true',
       },
     });
 
@@ -116,7 +177,13 @@ export async function POST(request: NextRequest) {
     console.error('Chat API error:', error);
     return NextResponse.json(
       { error: 'Failed to process chat request', details: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': request.headers.get('origin') || 'https://dllmchat.vercel.app',
+          'Access-Control-Allow-Credentials': 'true',
+        }
+      }
     );
   }
 } 
