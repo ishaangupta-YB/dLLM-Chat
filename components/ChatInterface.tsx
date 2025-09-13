@@ -1,7 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useState, useEffect } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Github, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModeToggle } from './mode-toggle';
 import { useChatModeStore, useChatStore } from '@/lib/stores';
@@ -42,7 +43,7 @@ export default function ChatInterface() {
     
     addMessage({ role: 'user', content });
 
-    const assistantMessageId = addMessage({ 
+    const assistantMessageId = addMessage({
       role: 'assistant', 
       content: '', 
       isStreaming: true 
@@ -219,6 +220,12 @@ export default function ChatInterface() {
 
 
               <ModeToggle />
+              <Link href="https://github.com/ishaangupta-YB" target="_blank" rel="noopener noreferrer">
+                <Button variant="outline" size="icon">
+                  <Github className="h-[1.2rem] w-[1.2rem]" />
+                  <span className="sr-only">GitHub</span>
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
