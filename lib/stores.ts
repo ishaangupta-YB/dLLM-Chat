@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { Message, ChatMode } from '@/lib/types';
+import { Message, ChatMode, ModelType } from '@/lib/types';
 
 interface ChatModeStore {
   mode: ChatMode;
@@ -15,6 +15,23 @@ export const useChatModeStore = create<ChatModeStore>()(
     }),
     {
       name: 'chat-mode-storage',
+    }
+  )
+);
+
+interface ModelStore {
+  model: ModelType;
+  setModel: (model: ModelType) => void;
+}
+
+export const useModelStore = create<ModelStore>()(
+  persist(
+    (set) => ({
+      model: 'mercury-2',
+      setModel: (model) => set({ model }),
+    }),
+    {
+      name: 'model-storage',
     }
   )
 );

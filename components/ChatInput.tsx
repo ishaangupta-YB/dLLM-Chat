@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import { cn } from '@/lib/utils';
-import { ArrowUpIcon, Zap, Waves } from 'lucide-react';
+import { ArrowUpIcon, Zap, Waves, Cpu } from 'lucide-react';
 import { StopIcon } from '@radix-ui/react-icons';
 import { 
   DropdownMenu,
@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-import { useChatModeStore, useChatStore } from '@/lib/stores';
+import { useChatModeStore, useModelStore, useChatStore } from '@/lib/stores';
 
 interface ChatInputProps {
   onSendMessage: (content: string) => Promise<void>;
@@ -22,6 +22,7 @@ export default function ChatInput({ onSendMessage, onStop, disabled = false }: C
   const [input, setInput] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { mode, setMode } = useChatModeStore();
+  const { model, setModel } = useModelStore();
   const { isLoading } = useChatStore();
 
   const canSend = input.trim() && !isLoading && !disabled;
@@ -93,36 +94,60 @@ export default function ChatInput({ onSendMessage, onStop, disabled = false }: C
 
             <div className="h-14 flex items-center px-2">
               <div className="flex items-center justify-between w-full">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      className="flex items-center gap-2 h-8 px-3 text-xs rounded-md text-foreground hover:bg-primary/10"
-                    >
-                      {mode === 'streaming' ? (
-                        <>
-                          <Zap className="w-3 h-3" />
-                          Streaming
-                        </>
-                      ) : (
-                        <>
-                          <Waves className="w-3 h-3" />
-                          Diffusing
-                        </>
-                      )}
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent>
-                    <DropdownMenuItem onClick={() => setMode('streaming')}>
-                      <Zap className="w-4 h-4 mr-2" />
-                      Streaming
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setMode('diffusing')}>
-                      <Waves className="w-4 h-4 mr-2" />
-                      Diffusing
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <div className="flex items-center gap-1">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="flex items-center gap-2 h-8 px-3 text-xs rounded-md text-foreground hover:bg-primary/10"
+                      >
+                        {mode === 'streaming' ? (
+                          <>
+                            <Zap className="w-3 h-3" />
+                            Streaming
+                          </>
+                        ) : (
+                          <>
+                            <Waves className="w-3 h-3" />
+                            Diffusing
+                          </>
+                        )}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => setMode('streaming')}>
+                        <Zap className="w-4 h-4 mr-2" />
+                        Streaming
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setMode('diffusing')}>
+                        <Waves className="w-4 h-4 mr-2" />
+                        Diffusing
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        className="flex items-center gap-2 h-8 px-3 text-xs rounded-md text-foreground hover:bg-primary/10"
+                      >
+                        <Cpu className="w-3 h-3" />
+                        Model: {model === 'mercury' ? 'Mercury' : 'Mercury 2'}
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent>
+                      <DropdownMenuItem onClick={() => setModel('mercury')}>
+                        <Cpu className="w-4 h-4 mr-2" />
+                        Mercury
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setModel('mercury-2')}>
+                        <Cpu className="w-4 h-4 mr-2" />
+                        Mercury 2
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
 
                 {isLoading ? (
                   <Button

@@ -9,6 +9,8 @@ export interface Message {
 
 export type ChatMode = 'streaming' | 'diffusing';
 
+export type ModelType = 'mercury' | 'mercury-2';
+
 export interface ChatConfig {
     mode: ChatMode;
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ChatMode } from '@/lib/types';
+import { ChatMode, ModelType } from '@/lib/types';
 
 // CORS validation function
 function validateOrigin(request: NextRequest): boolean {
@@ -71,13 +71,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { message, mode }: {
+    const { message, mode, model: requestedModel }: {
       message: string;
       mode: ChatMode;
+      model?: ModelType;
     } = await request.json();
 
     const apiUrl = process.env.DLLM_API_URL || 'https://api.inceptionlabs.ai/v1/chat/completions';
-    const model = process.env.DLLM_MODEL || 'mercury';
+    const allowedModels: ModelType[] = ['mercury', 'mercury-2'];
+    const model = requestedModel && allowedModels.includes(requestedModel)
+      ? requestedModel
+      : (process.env.DLLM_MODEL || 'mercury');
     
     // Only send the current message to reduce token usage
     const conversationMessages = [

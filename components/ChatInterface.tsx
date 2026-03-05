@@ -5,7 +5,7 @@ import { useCallback, useState, useEffect } from 'react';
 import { Github, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ModeToggle } from './mode-toggle';
-import { useChatModeStore, useChatStore } from '@/lib/stores';
+import { useChatModeStore, useModelStore, useChatStore } from '@/lib/stores';
 import Messages from './Messages';
 import ChatInput from './ChatInput';
 import { ChatSkeleton, LoadingSpinner } from './ui/loading';
@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 
 export default function ChatInterface() {
   const { mode } = useChatModeStore();
+  const { model } = useModelStore();
   const { messages, isLoading, addMessage, updateMessage, setLoading, clearMessages } = useChatStore();
   const [abortController, setAbortController] = useState<AbortController | null>(null);
   const [mounted, setMounted] = useState(false);
@@ -61,6 +62,7 @@ export default function ChatInterface() {
         body: JSON.stringify({
           message: content,
           mode,
+          model,
         }),
         signal: controller.signal,
       });
@@ -168,7 +170,7 @@ export default function ChatInterface() {
       setLoading(false);
       setAbortController(null);
     }
-  }, [isLoading, messages, mode, addMessage, updateMessage, setLoading]);
+  }, [isLoading, messages, mode, model, addMessage, updateMessage, setLoading]);
 
   if (!mounted || initializing) {
     return (
