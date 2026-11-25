@@ -1,5 +1,27 @@
 import type { NextConfig } from "next";
 
+const isDev = process.env.NODE_ENV !== 'production';
+
+// Content-Security-Policy. Next.js and next-themes rely on inline scripts, so
+// 'unsafe-inline' is required for scripts without per-request nonces; the
+// rest of the policy still blocks foreign scripts, framing, plugins, base-tag
+// hijacking and any network access other than this origin.
+const csp = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'${isDev ? " 'unsafe-eval'" : ''}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data:",
+  `connect-src 'self'${isDev ? ' ws: wss:' : ''}`,
+  "media-src 'self' blob:",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  ...(isDev ? [] : ['upgrade-insecure-requests']),
+].join('; ');
+
 const nextConfig: NextConfig = {
   // Production optimizations
   compress: true,
@@ -10,6 +32,18 @@ const nextConfig: NextConfig = {
       {
         source: '/(.*)',
         headers: [
+          {
+            key: 'Content-Security-Policy',
+            value: csp
+          },
+          {
+            key: 'Strict-Transport-Security',
+            value: 'max-age=63072000; includeSubDomains; preload'
+          },
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin'
+          },
           {
             key: 'X-Frame-Options',
             value: 'DENY'
@@ -28,33 +62,7 @@ const nextConfig: NextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=(), interest-cohort=()'
-          }
-        ]
-      },
-      // Strict CORS for API routes - only allow our domain
-      {
-        source: '/api/:path*',
-        headers: [
-          {
-            key: 'Access-Control-Allow-Origin',
-            value: 'https://dllmchat.vercel.app'
-          },
-          {
-            key: 'Access-Control-Allow-Methods',
-            value: 'POST, OPTIONS'
-          },
-          {
-            key: 'Access-Control-Allow-Headers',
-            value: 'Content-Type'
-          },
-          {
-            key: 'Access-Control-Allow-Credentials',
-            value: 'true'
-          },
-          {
-            key: 'Access-Control-Max-Age',
-            value: '86400'
+            value: 'camera=(), microphone=(self), geolocation=(), browsing-topics=()'
           }
         ]
       }
@@ -68,7 +76,7 @@ const nextConfig: NextConfig = {
   
   // Bundle optimization
   experimental: {
-    optimizePackageImports: ['lucide-react', '@radix-ui/react-icons'],
+    optimizePackageImports: ['lucide-react'],
   },
   
   // Output configuration removed for Vercel compatibility
