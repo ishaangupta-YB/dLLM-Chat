@@ -1,5 +1,3 @@
-import ChatInterface from '@/components/ChatInterface';
-
 export default function Home() {
-  return <ChatInterface />;
+  return <main className="p-8">dLLM Chat is being rebuilt.</main>;
 }
