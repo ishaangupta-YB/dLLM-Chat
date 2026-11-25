@@ -1,8 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import "katex/dist/katex.min.css";
+import "streamdown/styles.css";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
-import { Toaster } from "@/components/ui/sonner"
+import { Toaster } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,35 +18,49 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://dllmchat.vercel.app"),
   title: "dLLM Chat - Fastest AI Chat Inference",
-  description: "Experience next-generation AI conversations with dLLM Chat. Features streaming and diffusing response modes, modern UI/UX, and seamless real-time interactions powered by advanced language models.",
-  keywords: "AI chat, LLM, language model, conversation, streaming, artificial intelligence, chat interface, dLLM, machine learning",
-  authors: [{ name: "dLLM Team" }],
+  description:
+    "Chat with Inception's Mercury 3 diffusion LLM at ~1000 tokens/s. Streaming and diffusion response modes, an editable code canvas with autocomplete, voice mode and a modern, responsive UI.",
+  keywords:
+    "AI chat, LLM, diffusion LLM, dLLM, Mercury 3, Inception, language model, streaming, diffusion, code canvas, voice chat",
+  authors: [{ name: "Ishaan Gupta", url: "https://www.linkedin.com/in/ishaangupta1201" }],
   creator: "dLLM",
   publisher: "dLLM",
   alternates: {
-    canonical: '/',
+    canonical: "/",
   },
   openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: '/',
-    title: 'dLLM Chat - Advanced AI Conversation Interface',
-    description: 'Experience next-generation AI conversations with dLLM Chat. Features streaming and diffusing response modes, modern UI/UX, and seamless real-time interactions.',
-    siteName: 'dLLM Chat',
+    type: "website",
+    locale: "en_US",
+    url: "/",
+    title: "dLLM Chat - Mercury 3 diffusion LLM chat",
+    description:
+      "Chat with Inception's Mercury 3 diffusion LLM. Watch answers stream in or denoise into place, edit code in a live canvas, and talk to it with voice mode.",
+    siteName: "dLLM Chat",
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'dLLM Chat - Advanced AI Conversation Interface',
-    description: 'Experience next-generation AI conversations with streaming and diffusing response modes.',
-    creator: '@ishaangtwt',
+    card: "summary_large_image",
+    title: "dLLM Chat - Mercury 3 diffusion LLM chat",
+    description: "Streaming and diffusion response modes powered by Inception's Mercury 3.",
+    creator: "@ishaangtwt",
   },
   icons: {
-    icon: '/favicon.ico',
-    shortcut: '/favicon.ico',
-    apple: '/favicon.ico',
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/favicon.ico",
   },
-  category: 'technology',
+  category: "technology",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fcfcfe" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0f15" },
+  ],
 };
 
 export default function RootLayout({
@@ -53,16 +70,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-         <ThemeProvider
-            attribute="class"
-            defaultTheme="system"
-            enableSystem
-            disableTransitionOnChange
-          >
+      <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <TooltipProvider delayDuration={300}>
             {children}
-            <Toaster richColors position="top-right" />
-          </ThemeProvider>
+            <Toaster richColors position="top-center" closeButton />
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
