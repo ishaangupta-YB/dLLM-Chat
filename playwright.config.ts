@@ -11,7 +11,8 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   use: {
-    baseURL: `http://localhost:${PORT}`,
+    // E2E_BASE_URL runs the suite against a deployed site (e.g. production).
+    baseURL: process.env.E2E_BASE_URL ?? `http://localhost:${PORT}`,
     trace: 'off',
     launchOptions: process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {},
   },
@@ -19,7 +20,7 @@ export default defineConfig({
     { name: 'desktop', use: { viewport: { width: 1440, height: 900 } } },
     { name: 'mobile', use: { ...devices['Pixel 7'] }, grep: /@responsive/ },
   ],
-  webServer: process.env.E2E_NO_SERVER
+  webServer: process.env.E2E_NO_SERVER || process.env.E2E_BASE_URL
     ? undefined
     : { command: `npm run start -- -p ${PORT}`, port: PORT, reuseExistingServer: true, timeout: 120_000 },
 });
