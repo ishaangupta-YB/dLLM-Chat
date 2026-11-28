@@ -9,8 +9,21 @@ import { toast } from 'sonner';
 import { createNdjsonDecoder } from './protocol';
 import { createFramePlayer } from './frame-player';
 import { useChatStore } from '@/lib/store/chat-store';
+import { useKeysStore } from '@/lib/store/keys-store';
 import { flushPersist } from '@/lib/store/persist-storage';
-import type { ApiErrorBody, ChatMessage, ChatRequestBody, MessageUsage } from '@/lib/types';
+import { formatWithAttachments } from '@/lib/attachments/format';
+import { maybeGenerateTitle } from './title';
+import type {
+  ApiErrorBody,
+  Attachment,
+  ChatMessage,
+  ChatRequestBody,
+  MessageUsage,
+  SourceRef,
+  ToolCallRecord,
+  ToolRequestConfig,
+  ToolSettings,
+} from '@/lib/types';
 
 const MAX_CONTEXT_CHARS = 400_000;
 
@@ -19,6 +32,36 @@ export interface SendOptions {
   voice?: boolean;
   /** Called with the full text so far whenever it changes. */
   onText?: (fullText: string) => void;
+  /** Files attached to the user message (text already extracted). */
+  attachments?: Attachment[];
+}
+
+/** Tools config for a request from the user's settings (+ BYOK keys). */
+export function buildToolConfig(
+  tools: ToolSettings,
+  preset = 'general',
+  sessionId?: string,
+): ToolRequestConfig | undefined {
+  const keys = useKeysStore.getState().keys;
+  const byok = keys.tavily ? { tavily: keys.tavily } : undefined;
+  // Non-general presets (research, clinic, sql) always run with their tools.
+  if (!tools.enabled && preset === 'general') return { preset, sessionId };
+  if (!tools.enabled) return { preset, sessionId, webSearch: preset === 'research', keys: byok };
+  const mcp = Object.entries(tools.mcp)
+    .filter(([, on]) => on)
+    .map(([id]) => id);
+  const customMcp = tools.customMcp
+    .filter((s) => s.enabled)
+    .map(({ id, name, url, authHeader }) => ({ id, name, url, authHeader }));
+  return {
+    preset,
+    sessionId,
+    webSearch: tools.webSearch,
+    utilities: tools.utilities,
+    mcp,
+    customMcp,
+    keys: byok,
+  };
 }
 
 export interface TurnResult {
@@ -28,14 +71,17 @@ export interface TurnResult {
 }
 
 function buildContext(messages: ChatMessage[]): ChatRequestBody['messages'] {
-  const usable = messages.filter((m) => !m.pending && !m.error && m.content.trim() !== '');
+  const usable = messages.filter(
+    (m) => !m.pending && !m.error && (m.content.trim() !== '' || (m.attachments?.length ?? 0) > 0),
+  );
   const out: ChatRequestBody['messages'] = [];
   let total = 0;
   for (let i = usable.length - 1; i >= 0; i--) {
     const m = usable[i];
-    total += m.content.length;
+    const content = m.role === 'user' ? formatWithAttachments(m.content, m.attachments) : m.content;
+    total += content.length;
     if (total > MAX_CONTEXT_CHARS && out.length > 0) break;
-    out.unshift({ role: m.role, content: m.content });
+    out.unshift({ role: m.role, content });
   }
   // The API expects the history to start with a user turn.
   while (out.length && out[0].role !== 'user') out.shift();
@@ -109,17 +155,29 @@ export function useChatController() {
       });
     };
 
-    const player =
-      mode === 'diffusing'
-        ? createFramePlayer({
-            onFrame: (text) => {
-              content = text;
-              useChatStore.getState().patchMessage(conversationId, assistantId, { content: text });
-              opts.onText?.(text);
-            },
-          })
-        : null;
+    // Agent state: tool calls and sources shown above the answer.
+    let toolCalls: ToolCallRecord[] = [];
+    let sources: SourceRef[] = [];
+    const writeAgent = () =>
+      useChatStore.getState().patchMessage(conversationId, assistantId, {
+        toolCalls: toolCalls.length ? toolCalls : undefined,
+        sources: sources.length ? sources : undefined,
+      });
+
+    // Diffusing frames replace only the current step's text. `prefix` holds
+    // text committed by earlier agent steps.
+    let prefix = '';
+    const makePlayer = () =>
+      createFramePlayer({
+        onFrame: (text) => {
+          content = prefix + text;
+          useChatStore.getState().patchMessage(conversationId, assistantId, { content });
+          opts.onText?.(content);
+        },
+      });
+    let player = mode === 'diffusing' ? makePlayer() : null;
     let lastFrame = '';
+    let needsSeparator = false;
 
     try {
       const res = await fetch('/api/chat', {
@@ -131,6 +189,7 @@ export function useChatController() {
           mode,
           reasoningEffort: settings.reasoningEffort,
           voice: opts.voice || undefined,
+          tools: buildToolConfig(settings.tools, settings.agentPreset, conversationId),
         } satisfies ChatRequestBody),
         signal: controller.signal,
       });
@@ -140,6 +199,8 @@ export function useChatController() {
       const decoder = createNdjsonDecoder((e) => {
         switch (e.t) {
           case 'text':
+            if (needsSeparator && content.trim()) content += '\n\n';
+            needsSeparator = false;
             content += e.v;
             scheduleWrite();
             opts.onText?.(content);
@@ -147,6 +208,50 @@ export function useChatController() {
           case 'frame':
             lastFrame = e.v;
             player?.push(e.v, e.p);
+            break;
+          case 'step':
+            if (e.step > 1) {
+              if (player) {
+                player.flush();
+                prefix = content.trim() ? content + '\n\n' : '';
+                lastFrame = '';
+                player = makePlayer();
+              } else {
+                needsSeparator = true;
+              }
+            }
+            break;
+          case 'tool_start':
+            toolCalls = [
+              ...toolCalls,
+              {
+                id: e.id,
+                name: e.name,
+                label: e.label,
+                source: e.source,
+                args: e.args,
+                status: 'running',
+                startedAt: Date.now(),
+              },
+            ];
+            writeAgent();
+            break;
+          case 'tool_end':
+            toolCalls = toolCalls.map((tc) =>
+              tc.id === e.id
+                ? { ...tc, status: e.ok ? 'done' : 'error', result: e.result, error: e.error, endedAt: Date.now() }
+                : tc,
+            );
+            writeAgent();
+            break;
+          case 'sources': {
+            const seen = new Set(sources.map((s) => s.url));
+            sources = [...sources, ...e.sources.filter((s) => !seen.has(s.url))];
+            writeAgent();
+            break;
+          }
+          case 'file':
+            // Coding agent only (handled by lib/code-agent).
             break;
           case 'finish':
             finishReason = e.reason;
@@ -180,6 +285,13 @@ export function useChatController() {
       const aborted = (err as Error)?.name === 'AbortError';
       if (player) player.flush();
       if (rafId !== null) cancelAnimationFrame(rafId);
+      // Tools still marked running were cut off.
+      if (toolCalls.some((t) => t.status === 'running')) {
+        toolCalls = toolCalls.map((t) =>
+          t.status === 'running' ? { ...t, status: 'error', error: aborted ? 'Stopped' : 'Interrupted', endedAt: Date.now() } : t,
+        );
+        writeAgent();
+      }
       if (aborted) {
         useChatStore.getState().patchMessage(conversationId, assistantId, {
           content,
@@ -215,6 +327,7 @@ export function useChatController() {
     // Voice mode shows its own error state; text turns also get a toast so a
     // failure is noticed even when the thread is scrolled away.
     if (streamError && !opts.voice) toast.error(streamError);
+    if (!streamError) void maybeGenerateTitle(conversationId);
     return { content, error: streamError };
   }, []);
 
@@ -224,12 +337,17 @@ export function useChatController() {
   const send = useCallback(
     async (text: string, opts: SendOptions = {}): Promise<TurnResult> => {
       const trimmed = text.trim();
-      if (!trimmed) return { content: '', error: 'Empty message.' };
+      if (!trimmed && !opts.attachments?.length) return { content: '', error: 'Empty message.' };
       const store = useChatStore.getState();
       if (store.streaming) return { content: '', error: 'A response is already in progress.' };
       const conversationId =
         store.activeId && store.conversations[store.activeId] ? store.activeId : store.createConversation();
-      store.appendMessage(conversationId, { role: 'user', content: trimmed, voice: opts.voice || undefined });
+      store.appendMessage(conversationId, {
+        role: 'user',
+        content: trimmed,
+        voice: opts.voice || undefined,
+        attachments: opts.attachments?.length ? opts.attachments : undefined,
+      });
       flushPersist();
       return runTurn(conversationId, opts);
     },
@@ -255,8 +373,14 @@ export function useChatController() {
       const conversationId = store.activeId;
       const trimmed = text.trim();
       if (!conversationId || store.streaming || !trimmed) return;
+      // Keep the files that were attached to the edited message.
+      const original = store.conversations[conversationId]?.messages.find((m) => m.id === messageId);
       store.truncateFrom(conversationId, messageId);
-      store.appendMessage(conversationId, { role: 'user', content: trimmed });
+      store.appendMessage(conversationId, {
+        role: 'user',
+        content: trimmed,
+        attachments: original?.attachments,
+      });
       return runTurn(conversationId);
     },
     [runTurn],

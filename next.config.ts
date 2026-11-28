@@ -12,7 +12,9 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
   "font-src 'self' data:",
-  `connect-src 'self'${isDev ? ' ws: wss:' : ''}`,
+  // blob: lets PromptInput read attached files; ElevenLabs is called directly
+  // from the browser with the user's own key.
+  `connect-src 'self' blob: https://api.elevenlabs.io${isDev ? ' ws: wss:' : ''}`,
   "media-src 'self' blob:",
   "worker-src 'self' blob:",
   "object-src 'none'",
@@ -26,11 +28,16 @@ const nextConfig: NextConfig = {
   // Production optimizations
   compress: true,
   poweredByHeader: false,
+  // Keep the dev-only indicator away from the sidebar footer controls.
+  devIndicators: { position: 'bottom-right' },
   // Security headers
   async headers() {
     return [
       {
-        source: '/(.*)',
+        // Every route except the sandboxed coding-agent preview document
+        // (app/preview-frame/route.ts), which sends its own CSP and must be
+        // frameable by this origin.
+        source: '/((?!preview-frame$).*)',
         headers: [
           {
             key: 'Content-Security-Policy',

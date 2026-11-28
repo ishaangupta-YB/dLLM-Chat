@@ -2,10 +2,11 @@ import type { NextRequest } from 'next/server';
 import { z } from 'zod';
 import { CHAT_MODEL_IDS, getModel } from '@/lib/models';
 import { encodeEvent, type ChatStreamEvent } from '@/lib/chat/protocol';
-import { createSseParser } from '@/lib/sse';
+import { runAgent } from '@/lib/agent/runtime';
+import { ToolConfigSchema } from '@/lib/agent/schema';
+import { resolveTools } from '@/lib/agent/tools';
 import { guard, jsonError, readJson } from '@/lib/server/guard';
-import { inceptionFetch, UpstreamError } from '@/lib/server/inception';
-import type { MessageUsage } from '@/lib/types';
+import { UpstreamError } from '@/lib/server/inception';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -29,6 +30,7 @@ const BodySchema = z.object({
   mode: z.enum(['streaming', 'diffusing']),
   reasoningEffort: z.enum(['instant', 'low', 'medium', 'high']),
   voice: z.boolean().optional(),
+  tools: ToolConfigSchema,
 });
 
 const SYSTEM_PROMPT = `You are Mercury, a fast and helpful assistant inside dLLM Chat.
@@ -64,106 +66,65 @@ export async function POST(req: NextRequest) {
   }
   const info = getModel(model);
 
-  const upstreamBody: Record<string, unknown> = {
+  const request: Record<string, unknown> = {
     model,
-    messages: [
-      { role: 'system', content: voice ? VOICE_PROMPT : SYSTEM_PROMPT },
-      ...messages.filter((m) => m.content.trim() !== ''),
-    ],
-    stream: true,
-    stream_options: { include_usage: true },
     reasoning_effort: reasoningEffort,
     // Reasoning tokens count against this budget; small budgets can yield an
     // empty answer with finish_reason "length".
     max_completion_tokens: voice ? 4096 : (info?.defaultMaxTokens ?? 16_384),
   };
-  if (mode === 'diffusing' && !voice) upstreamBody.diffusing = true;
   if (voice) {
-    upstreamBody.realtime = true;
-    upstreamBody.temperature = 0.75;
+    request.realtime = true;
+    request.temperature = 0.75;
   }
-
-  let upstream: Response;
-  try {
-    upstream = await inceptionFetch('/chat/completions', upstreamBody, req.signal);
-  } catch (err) {
-    if (err instanceof UpstreamError) return jsonError(err.message, err.status, err.code);
-    if ((err as Error)?.name === 'AbortError') return new Response(null, { status: 499 });
-    console.error('[api/chat] unexpected error', err);
-    return jsonError('Unexpected server error.', 500, 'internal');
-  }
-
-  const diffusing = upstreamBody.diffusing === true;
+  const diffusing = mode === 'diffusing' && !voice;
   const encoder = new TextEncoder();
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
-      const send = (e: ChatStreamEvent) => controller.enqueue(encoder.encode(encodeEvent(e)));
-      let finished = false;
-
-      const parser = createSseParser((data) => {
-        if (data === '[DONE]') {
-          finished = true;
-          return;
-        }
-        let chunk: UpstreamChunk;
+      let closed = false;
+      const emit = (e: ChatStreamEvent) => {
+        if (closed) return;
         try {
-          chunk = JSON.parse(data);
+          controller.enqueue(encoder.encode(encodeEvent(e)));
         } catch {
-          return;
+          closed = true;
         }
-        if (chunk.error) {
-          send({ t: 'error', message: errorText(chunk.error) });
-          return;
-        }
-        if (typeof chunk.warning === 'string' && chunk.warning) {
-          send({ t: 'warning', message: chunk.warning });
-        }
-        for (const choice of chunk.choices ?? []) {
-          const content = choice.delta?.content;
-          if (typeof content === 'string' && content !== '') {
-            if (diffusing) {
-              const p = Number(chunk.diffusion_meta?.diffusion_progress ?? choice.diffusion_meta?.diffusion_progress ?? 0);
-              send({ t: 'frame', v: content, p: Number.isFinite(p) ? p : 0 });
-            } else {
-              send({ t: 'text', v: content });
-            }
-          }
-          if (choice.finish_reason) send({ t: 'finish', reason: choice.finish_reason });
-        }
-        if (chunk.usage) send({ t: 'usage', usage: mapUsage(chunk) });
+      };
+      const resolved = await resolveTools(parsed.data.tools, req.signal).catch((err) => {
+        console.error('[api/chat] tool resolution failed', err);
+        return { tools: [], close: async () => {}, warnings: ['Tools are unavailable right now.'] as string[], systemHint: undefined };
       });
-
-      const reader = upstream.body!.getReader();
-      const decoder = new TextDecoder();
+      for (const w of resolved.warnings) emit({ t: 'warning', message: w });
+      const system = [voice ? VOICE_PROMPT : SYSTEM_PROMPT, resolved.tools.length ? resolved.systemHint : undefined]
+        .filter(Boolean)
+        .join('\n\n');
       try {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          parser.push(decoder.decode(value, { stream: true }));
-        }
-        parser.push(decoder.decode());
-        parser.end();
-        if (!finished) send({ t: 'finish', reason: null });
+        await runAgent({
+          request,
+          messages: [{ role: 'system', content: system }, ...messages.filter((m) => m.content.trim() !== '')],
+          tools: resolved.tools,
+          diffusing,
+          emit,
+          signal: req.signal,
+        });
       } catch (err) {
-        if ((err as Error)?.name !== 'AbortError') {
-          console.error('[api/chat] stream error', err);
-          try {
-            send({ t: 'error', message: 'The response stream was interrupted.' });
-          } catch {
-            /* controller already closed */
-          }
+        if ((err as Error)?.name !== 'AbortError' && !req.signal.aborted) {
+          if (!(err instanceof UpstreamError)) console.error('[api/chat] agent error', err);
+          emit({
+            t: 'error',
+            message: err instanceof UpstreamError ? err.message : 'The response stream was interrupted.',
+          });
         }
       } finally {
+        await resolved.close().catch(() => {});
+        closed = true;
         try {
           controller.close();
         } catch {
           /* already closed */
         }
       }
-    },
-    cancel() {
-      upstream.body?.cancel().catch(() => {});
     },
   });
 
@@ -174,40 +135,4 @@ export async function POST(req: NextRequest) {
       'X-Accel-Buffering': 'no',
     },
   });
-}
-
-interface UpstreamChunk {
-  choices?: {
-    delta?: { content?: string | null };
-    finish_reason?: string | null;
-    diffusion_meta?: { diffusion_progress?: number };
-  }[];
-  diffusion_meta?: { diffusion_progress?: number };
-  usage?: {
-    prompt_tokens?: number;
-    completion_tokens?: number;
-    prompt_tokens_details?: { cached_tokens?: number };
-    completion_tokens_details?: { reasoning_tokens?: number };
-  };
-  server_timing?: { server_latency_ms?: number };
-  warning?: string | null;
-  error?: unknown;
-}
-
-function mapUsage(chunk: UpstreamChunk): MessageUsage {
-  const u = chunk.usage ?? {};
-  return {
-    promptTokens: u.prompt_tokens ?? 0,
-    completionTokens: u.completion_tokens ?? 0,
-    reasoningTokens: u.completion_tokens_details?.reasoning_tokens,
-    cachedTokens: u.prompt_tokens_details?.cached_tokens,
-    serverLatencyMs: chunk.server_timing?.server_latency_ms,
-  };
-}
-
-function errorText(err: unknown): string {
-  if (typeof err === 'string') return err;
-  const m = (err as { message?: unknown })?.message;
-  if (typeof m === 'string') return m;
-  return 'The model returned an error.';
 }
