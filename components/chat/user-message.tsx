@@ -4,6 +4,7 @@ import { memo, useEffect, useRef, useState } from "react";
 import { CheckIcon, CopyIcon, MicIcon, PencilIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Message, MessageAction, MessageActions, MessageContent } from "@/components/ai-elements/message";
+import { MessageAttachments } from "@/components/attachments/message-attachments";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useChatController } from "@/lib/chat/use-chat-controller";
@@ -87,11 +88,21 @@ export const UserMessage = memo(function UserMessage({ message }: { message: Cha
     );
   }
 
+  const hasText = message.content.trim().length > 0;
+  const hasAttachments = !!message.attachments?.length;
+
   return (
     <Message from="user" className="max-w-[92%] sm:max-w-[80%]">
-      <MessageContent className="rounded-2xl! rounded-br-md! bg-secondary px-4! py-2.5! text-[15px] leading-relaxed shadow-xs ring-1 ring-border/50">
-        <p className="whitespace-pre-wrap break-words">{message.content}</p>
-      </MessageContent>
+      {hasAttachments && (
+        <div className="flex w-full justify-end">
+          <MessageAttachments attachments={message.attachments} />
+        </div>
+      )}
+      {(hasText || !hasAttachments) && (
+        <MessageContent className="rounded-2xl! rounded-br-md! bg-secondary px-4! py-2.5! text-[15px] text-secondary-foreground leading-relaxed shadow-xs ring-1 ring-border/60">
+          <p className="whitespace-pre-wrap break-words">{message.content}</p>
+        </MessageContent>
+      )}
       <MessageActions
         className={cn(
           "justify-end gap-0.5 transition-opacity duration-200",
@@ -103,9 +114,11 @@ export const UserMessage = memo(function UserMessage({ message }: { message: Cha
             <MicIcon className="size-3" /> Voice
           </span>
         )}
-        <MessageAction tooltip={copied ? "Copied" : "Copy"} label="Copy message" onClick={onCopy}>
-          {copied ? <CheckIcon className="size-4 text-emerald-500" /> : <CopyIcon className="size-4" />}
-        </MessageAction>
+        {hasText && (
+          <MessageAction tooltip={copied ? "Copied" : "Copy"} label="Copy message" onClick={onCopy}>
+            {copied ? <CheckIcon className="size-4 text-primary" /> : <CopyIcon className="size-4" />}
+          </MessageAction>
+        )}
         <MessageAction tooltip="Edit" label="Edit message" onClick={startEdit} disabled={streaming}>
           <PencilIcon className="size-4" />
         </MessageAction>

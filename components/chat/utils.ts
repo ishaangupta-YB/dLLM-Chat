@@ -1,4 +1,5 @@
-import type { Conversation } from "@/lib/types";
+import { useChatStore } from "@/lib/store/chat-store";
+import type { AppMode, Conversation } from "@/lib/types";
 
 export const COMPOSER_INPUT_ID = "composer-input";
 
@@ -12,6 +13,28 @@ export function focusComposer() {
     const len = el.value.length;
     el.setSelectionRange(len, len);
   });
+}
+
+/** Conversation kind; conversations saved before v2 have none and are chats. */
+export const kindOf = (c: Pick<Conversation, "kind">): AppMode => c.kind ?? "chat";
+
+/**
+ * Switch between Chat and Code mode. Keeps the active conversation when it
+ * already matches, otherwise opens the most recent conversation of that kind
+ * (or none, which shows the empty state).
+ */
+export function switchAppMode(mode: AppMode) {
+  const { settings, conversations, activeId, setSettings, selectConversation } = useChatStore.getState();
+  if (settings.appMode === mode) return;
+  setSettings({ appMode: mode });
+  const active = activeId ? conversations[activeId] : undefined;
+  if (active && kindOf(active) === mode) return;
+  let next: Conversation | undefined;
+  for (const c of Object.values(conversations)) {
+    if (kindOf(c) !== mode || (c.messages.length === 0 && mode === "chat")) continue;
+    if (!next || c.updatedAt > next.updatedAt) next = c;
+  }
+  selectConversation(next?.id ?? null);
 }
 
 export type ConversationGroupKey = "pinned" | "today" | "yesterday" | "week" | "older";

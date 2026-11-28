@@ -4,12 +4,14 @@ import { memo, useCallback, useMemo, useRef, useState, useSyncExternalStore } fr
 import {
   DownloadIcon,
   FileJsonIcon,
+  FolderCodeIcon,
   MessageSquareIcon,
   MoreHorizontalIcon,
   PencilIcon,
   PinIcon,
   PinOffIcon,
   SearchIcon,
+  Settings2Icon,
   SquarePenIcon,
   Trash2Icon,
   UploadIcon,
@@ -54,11 +56,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ModeToggle } from "@/components/mode-toggle";
+import { SettingsDialog } from "@/components/integrations/settings-dialog";
 import { useStoreHydrated } from "./use-store-hydrated";
 import { useChatController } from "@/lib/chat/use-chat-controller";
+import { VERSIONS_KEY, useVersionsStore } from "@/lib/code-agent/versions";
 import { sortConversations, useChatStore } from "@/lib/store/chat-store";
 import type { Conversation } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { AnimatedTitle } from "./animated-title";
 import { BrandMark } from "./brand-mark";
 import {
   GROUP_LABELS,
@@ -67,8 +72,28 @@ import {
   extractConversations,
   focusComposer,
   groupConversations,
+  kindOf,
   slugify,
 } from "./utils";
+
+/** Drop a coding project's version snapshots (store hydrates lazily, so load it first). */
+async function removeProjectVersions(id: string) {
+  try {
+    if (!useVersionsStore.persist.hasHydrated()) await useVersionsStore.persist.rehydrate();
+    useVersionsStore.getState().removeConversation(id);
+  } catch {
+    /* snapshots are best effort */
+  }
+}
+
+function clearProjectVersions() {
+  try {
+    useVersionsStore.setState({ byConversation: {} });
+    localStorage.removeItem(VERSIONS_KEY);
+  } catch {
+    /* ignore */
+  }
+}
 
 // Fixed widths: random ones would differ between server and client render.
 const SKELETON_WIDTHS = ["78%", "62%", "70%", "54%", "66%", "48%"];
@@ -84,7 +109,7 @@ function sidebarSignature(conversations: Record<string, Conversation>): string {
   let sig = "";
   for (const id in conversations) {
     const c = conversations[id];
-    sig += `${c.id}\u0000${c.updatedAt}\u0000${c.pinned ? 1 : 0}\u0000${c.title}\u0001`;
+    sig += `${c.id}\u0000${c.updatedAt}\u0000${c.pinned ? 1 : 0}\u0000${kindOf(c)}\u0000${c.titleSource ?? ""}\u0000${c.title}\u0001`;
   }
   return sig;
 }
@@ -97,6 +122,12 @@ export function AppSidebar() {
   const streamingId = useChatStore((s) => s.streaming?.conversationId ?? null);
   const createConversation = useChatStore((s) => s.createConversation);
   const selectConversation = useChatStore((s) => s.selectConversation);
+  const storeMode = useChatStore((s) => s.settings.appMode);
+  // SSR and the first client render use 'chat' so markup matches.
+  const appMode = hydrated ? storeMode : "chat";
+  const isCode = appMode === "code";
+  const noun = isCode ? "project" : "chat";
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const { stop } = useChatController();
 
   const [query, setQuery] = useState("");
@@ -108,11 +139,16 @@ export function AppSidebar() {
   const groups = useMemo(() => {
     // `sig` captures every field we read here.
     void sig;
-    const all = sortConversations(Object.values(useChatStore.getState().conversations));
+    const everything = Object.values(useChatStore.getState().conversations);
+    const all = sortConversations(everything.filter((c) => kindOf(c) === appMode));
     const q = query.trim().toLowerCase();
     const filtered = q ? all.filter((c) => c.title.toLowerCase().includes(q)) : all;
-    return { total: all.length, groups: groupConversations(filtered, new Date().getTime()) };
-  }, [sig, query]);
+    return {
+      total: all.length,
+      everything: everything.length,
+      groups: groupConversations(filtered, new Date().getTime()),
+    };
+  }, [sig, query, appMode]);
 
   const closeMobile = useCallback(() => {
     if (isMobile) setOpenMobile(false);
@@ -170,13 +206,15 @@ export function AppSidebar() {
     if (!deleteTarget) return;
     if (useChatStore.getState().streaming?.conversationId === deleteTarget.id) stop();
     useChatStore.getState().deleteConversation(deleteTarget.id);
-    toast.success("Chat deleted");
+    void removeProjectVersions(deleteTarget.id);
+    toast.success(isCode ? "Project deleted" : "Chat deleted");
     setDeleteTarget(null);
   };
 
   const onClearAll = () => {
     if (useChatStore.getState().streaming) stop();
     useChatStore.getState().clearAll();
+    clearProjectVersions();
     toast.success("All chats cleared");
     setConfirmClear(false);
   };
@@ -184,11 +222,13 @@ export function AppSidebar() {
   return (
     <>
       <Sidebar collapsible="icon" className="border-sidebar-border/70">
-        <SidebarHeader className="gap-3 p-3 group-data-[collapsible=icon]:p-2">
-          <div className="flex items-center gap-2.5 px-1 py-0.5 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
-            <BrandMark className="size-8 group-data-[collapsible=icon]:size-8" />
-            <div className="flex min-w-0 flex-col leading-tight group-data-[collapsible=icon]:hidden">
-              <span className="truncate font-semibold text-sm tracking-tight">dLLM Chat</span>
+        <SidebarHeader className="gap-2 p-2">
+          <div className="flex h-12 items-center gap-2.5 overflow-hidden">
+            <BrandMark className="size-8" />
+            <div className="flex min-w-0 flex-col leading-tight transition-opacity duration-200 group-data-[collapsible=icon]:opacity-0">
+              <span className="truncate font-semibold text-[15px] tracking-tight">
+                dLLM <span className="text-primary">Chat</span>
+              </span>
               <span className="truncate text-[11px] text-muted-foreground">Mercury diffusion LLMs</span>
             </div>
           </div>
@@ -196,33 +236,33 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={onNewChat}
-                tooltip="New chat (Ctrl+Shift+O)"
-                className="h-9 border border-sidebar-border bg-background/60 font-medium shadow-xs hover:bg-background dark:bg-sidebar-accent/40 dark:hover:bg-sidebar-accent"
+                tooltip={`New ${noun} (Ctrl+Shift+O)`}
+                className="h-9 border border-sidebar-border bg-background font-medium shadow-xs hover:border-primary/40 hover:bg-sidebar-accent dark:bg-sidebar-accent/50 dark:hover:bg-sidebar-accent"
               >
                 <SquarePenIcon />
-                <span>New chat</span>
+                <span>New {noun}</span>
                 <kbd className="ml-auto hidden font-mono text-[10px] text-muted-foreground tracking-tight md:inline group-data-[collapsible=icon]:hidden">
                   <ShortcutHint />
                 </kbd>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
-          <div className="relative group-data-[collapsible=icon]:hidden">
+          <div className="relative transition-[opacity,visibility] duration-200 group-data-[collapsible=icon]:invisible group-data-[collapsible=icon]:opacity-0">
             <SearchIcon className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <SidebarInput
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === "Escape" && setQuery("")}
-              placeholder="Search chats"
-              aria-label="Search chats"
-              className="h-8 bg-background/60 pr-7 pl-8 dark:bg-sidebar-accent/30"
+              placeholder={isCode ? "Search projects" : "Search chats"}
+              aria-label={isCode ? "Search projects" : "Search chats"}
+              className="h-8 min-w-56 bg-background pr-7 pl-8 dark:bg-sidebar-accent/40"
             />
             {query && (
               <button
                 type="button"
                 aria-label="Clear search"
                 onClick={() => setQuery("")}
-                className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground"
+                className="absolute top-1/2 right-1.5 flex size-5 -translate-y-1/2 items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-2"
               >
                 <XIcon className="size-3" />
               </button>
@@ -230,7 +270,7 @@ export function AppSidebar() {
           </div>
         </SidebarHeader>
 
-        <SidebarContent className="gap-0 group-data-[collapsible=icon]:hidden">
+        <SidebarContent className="min-w-56 gap-0 transition-[opacity,visibility] duration-200 group-data-[collapsible=icon]:invisible group-data-[collapsible=icon]:opacity-0">
           {!hydrated ? (
             <SidebarGroup>
               <SidebarMenu>
@@ -243,15 +283,19 @@ export function AppSidebar() {
             </SidebarGroup>
           ) : groups.total === 0 ? (
             <div className="flex flex-col items-center gap-2 px-6 py-10 text-center text-muted-foreground">
-              <MessageSquareIcon className="size-5 opacity-60" />
-              <p className="text-xs">Your chats will show up here.</p>
+              {isCode ? (
+                <FolderCodeIcon className="size-5 opacity-60" />
+              ) : (
+                <MessageSquareIcon className="size-5 opacity-60" />
+              )}
+              <p className="text-xs">Your {noun}s will show up here.</p>
             </div>
           ) : groups.groups.length === 0 ? (
-            <p className="px-4 py-8 text-center text-muted-foreground text-xs">No chats match “{query}”.</p>
+            <p className="px-4 py-8 text-center text-muted-foreground text-xs">No {noun}s match “{query}”.</p>
           ) : (
             groups.groups.map((g) => (
               <SidebarGroup key={g.key} className="py-1">
-                <SidebarGroupLabel className="h-7 text-[11px] text-muted-foreground/80 uppercase tracking-wider">
+                <SidebarGroupLabel className="h-7 font-medium text-[11px] text-muted-foreground uppercase tracking-wider">
                   {GROUP_LABELS[g.key]}
                 </SidebarGroupLabel>
                 <SidebarGroupContent>
@@ -261,6 +305,7 @@ export function AppSidebar() {
                         key={c.id}
                         id={c.id}
                         title={c.title}
+                        titleSource={c.titleSource}
                         pinned={!!c.pinned}
                         active={c.id === activeId}
                         streaming={c.id === streamingId}
@@ -282,6 +327,16 @@ export function AppSidebar() {
         <SidebarSeparator className="mx-0" />
         <SidebarFooter className="gap-1 p-2">
           <SidebarMenu className="gap-0.5">
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                onClick={() => setSettingsOpen(true)}
+                tooltip="Settings"
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <Settings2Icon />
+                <span>Settings</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
             <SidebarMenuItem>
               <SidebarMenuButton onClick={onExportAll} tooltip="Export all chats" className="text-muted-foreground hover:text-foreground">
                 <DownloadIcon />
@@ -314,7 +369,7 @@ export function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton
                 onClick={() => setConfirmClear(true)}
-                disabled={hydrated && groups.total === 0}
+                disabled={hydrated && groups.everything === 0}
                 tooltip="Clear all chats"
                 className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
               >
@@ -340,10 +395,12 @@ export function AppSidebar() {
         <SidebarRail />
       </Sidebar>
 
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+
       <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete this chat?</AlertDialogTitle>
+            <AlertDialogTitle>Delete this {noun}?</AlertDialogTitle>
             <AlertDialogDescription>
               “{deleteTarget?.title}” will be permanently removed from this browser. This cannot be undone.
             </AlertDialogDescription>
@@ -382,6 +439,7 @@ export function AppSidebar() {
 interface ConversationItemProps {
   id: string;
   title: string;
+  titleSource: Conversation["titleSource"];
   pinned: boolean;
   active: boolean;
   streaming: boolean;
@@ -396,6 +454,7 @@ interface ConversationItemProps {
 const ConversationItem = memo(function ConversationItem({
   id,
   title,
+  titleSource,
   pinned,
   active,
   streaming,
@@ -438,7 +497,7 @@ const ConversationItem = memo(function ConversationItem({
         ) : pinned ? (
           <PinIcon className="size-3! text-muted-foreground" />
         ) : null}
-        <span>{title}</span>
+        <AnimatedTitle id={id} title={title} source={titleSource} />
       </SidebarMenuButton>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

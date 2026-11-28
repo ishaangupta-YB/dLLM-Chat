@@ -56,92 +56,110 @@
 }
 
 :root {
-  --radius: 0.625rem;
+  /* Original dLLM Chat palette (v0, commit 63c4923). Sky-blue primary on white. */
+  --radius: 0.5rem;
+  /* Chat column width; the composer uses the same variable. */
+  --chat-max-w: 52rem;
 
-  --background: oklch(0.992 0.002 264);
-  --foreground: oklch(0.2 0.02 268);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.2 0.02 268);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.2 0.02 268);
-  --primary: oklch(0.54 0.21 268);
-  --primary-foreground: oklch(0.985 0.005 268);
-  --secondary: oklch(0.955 0.01 268);
-  --secondary-foreground: oklch(0.25 0.03 268);
-  --muted: oklch(0.96 0.006 268);
-  --muted-foreground: oklch(0.52 0.02 268);
-  --accent: oklch(0.95 0.015 268);
-  --accent-foreground: oklch(0.25 0.03 268);
-  --destructive: oklch(0.58 0.22 27);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(0.91 0.008 268);
-  --input: oklch(0.9 0.01 268);
-  --ring: oklch(0.6 0.18 268);
+  --primary: oklch(75% 0.12 240);
+  --primary-foreground: oklch(98.71% 0.0106 342.55);
+  --secondary: oklch(96.83% 0.0143 196.38);
+  --secondary-foreground: oklch(24.26% 0.0216 265.75);
+  --muted: oklch(94.51% 0.0173 197.96);
+  --muted-foreground: oklch(62.08% 0.0203 238.75);
+  --accent: oklch(94.51% 0.0173 197.96);
+  --accent-foreground: oklch(24.26% 0.0216 265.75);
+  --destructive: oklch(65.72% 0.199 27.33);
+  --destructive-foreground: oklch(98.71% 0.0106 342.55);
+  --border: oklch(89.87% 0.0109 205.91);
+  --input: oklch(89.87% 0.0109 205.91);
+  --ring: oklch(59.69% 0.156 255.85);
+  --background: oklch(100% 0 0);
+  --foreground: oklch(9.08% 0.0054 285.82);
+  --chart-1: oklch(59.69% 0.156 255.85);
+  --chart-2: oklch(69.51% 0.161 332.2);
+  --chart-3: oklch(76.12% 0.094 183.61);
+  --chart-4: oklch(75.8% 0.186 77.67);
+  --chart-5: oklch(69.37% 0.134 302.69);
 
-  --chart-1: oklch(0.6 0.18 268);
-  --chart-2: oklch(0.7 0.16 332);
-  --chart-3: oklch(0.76 0.09 184);
-  --chart-4: oklch(0.76 0.18 78);
-  --chart-5: oklch(0.69 0.13 303);
+  /* Original --sidebar-background maps onto shadcn v4's --sidebar. */
+  --sidebar-background: oklch(100% 0 0);
+  --sidebar: var(--sidebar-background);
+  --sidebar-foreground: oklch(9.08% 0.0054 285.82);
+  --sidebar-primary: oklch(59.69% 0.156 255.85);
+  --sidebar-primary-foreground: oklch(98.71% 0.0106 342.55);
+  --sidebar-accent: oklch(94.51% 0.0173 197.96);
+  --sidebar-accent-foreground: oklch(24.26% 0.0216 265.75);
+  --sidebar-border: oklch(89.87% 0.0109 205.91);
+  --sidebar-ring: oklch(59.69% 0.156 255.85);
 
-  --sidebar: oklch(0.977 0.004 268);
-  --sidebar-foreground: oklch(0.25 0.02 268);
-  --sidebar-primary: oklch(0.54 0.21 268);
-  --sidebar-primary-foreground: oklch(0.985 0.005 268);
-  --sidebar-accent: oklch(0.94 0.012 268);
-  --sidebar-accent-foreground: oklch(0.22 0.03 268);
-  --sidebar-border: oklch(0.92 0.006 268);
-  --sidebar-ring: oklch(0.6 0.18 268);
+  --card: oklch(100% 0 0);
+  --card-foreground: oklch(9.08% 0.0054 285.82);
+  --popover: oklch(100% 0 0);
+  --popover-foreground: oklch(9.08% 0.0054 285.82);
 
-  /* Brand gradient (Mercury: indigo -> violet -> cyan). */
-  --brand-1: oklch(0.58 0.22 275);
-  --brand-2: oklch(0.62 0.24 305);
-  --brand-3: oklch(0.7 0.15 210);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
 
-  --glow: oklch(0.54 0.21 268 / 0.08);
+  /* Brand accents are shades of the primary only (no extra hues). Kept as
+     tokens because other components reference them. */
+  --brand-1: var(--primary);
+  --brand-2: color-mix(in oklch, var(--primary) 72%, var(--ring));
+  --brand-3: var(--primary);
+  --glow: color-mix(in oklch, var(--primary) 9%, transparent);
+
+  /* Motion */
+  --ease-out-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  --sidebar-duration: 220ms;
 }
 
 .dark {
-  --background: oklch(0.155 0.012 270);
-  --foreground: oklch(0.94 0.008 268);
-  --card: oklch(0.19 0.014 270);
-  --card-foreground: oklch(0.94 0.008 268);
-  --popover: oklch(0.2 0.015 270);
-  --popover-foreground: oklch(0.94 0.008 268);
-  --primary: oklch(0.72 0.16 272);
-  --primary-foreground: oklch(0.16 0.03 270);
-  --secondary: oklch(0.24 0.016 270);
-  --secondary-foreground: oklch(0.93 0.01 268);
-  --muted: oklch(0.23 0.014 270);
-  --muted-foreground: oklch(0.68 0.018 268);
-  --accent: oklch(0.26 0.02 270);
-  --accent-foreground: oklch(0.94 0.008 268);
-  --destructive: oklch(0.66 0.2 25);
-  --destructive-foreground: oklch(0.985 0 0);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.66 0.16 272);
+  --primary: oklch(80% 0.15 240);
+  --primary-foreground: oklch(18.11% 0.0328 265.75);
+  --secondary: oklch(19.85% 0.0243 264.54);
+  --secondary-foreground: oklch(83.91% 0.0194 196.38);
+  --muted: oklch(19.85% 0.0243 264.54);
+  --muted-foreground: oklch(64.93% 0.0216 238.75);
+  --accent: oklch(19.85% 0.0243 264.54);
+  --accent-foreground: oklch(83.91% 0.0194 196.38);
+  --destructive: oklch(65.69% 0.196 27.58);
+  --destructive-foreground: oklch(83.91% 0.0194 196.38);
+  --border: oklch(19.85% 0.0243 264.54);
+  --input: oklch(19.85% 0.0243 264.54);
+  --ring: oklch(69.71% 0.329 255.85);
+  --background: oklch(9.08% 0.0054 285.82);
+  --foreground: oklch(83.91% 0.0194 196.38);
+  --chart-1: oklch(69.71% 0.329 255.85);
+  --chart-2: oklch(79.93% 0.176 332.89);
+  --chart-3: oklch(81.29% 0.109 183.61);
+  --chart-4: oklch(80.17% 0.186 77.67);
+  --chart-5: oklch(79.86% 0.142 302.69);
 
-  --chart-1: oklch(0.7 0.17 272);
-  --chart-2: oklch(0.78 0.17 333);
-  --chart-3: oklch(0.81 0.11 184);
-  --chart-4: oklch(0.8 0.18 78);
-  --chart-5: oklch(0.79 0.14 303);
+  --sidebar-background: oklch(9.08% 0.0054 285.82);
+  --sidebar: var(--sidebar-background);
+  --sidebar-foreground: oklch(83.91% 0.0194 196.38);
+  --sidebar-primary: oklch(69.71% 0.329 255.85);
+  --sidebar-primary-foreground: oklch(18.11% 0.0328 265.75);
+  --sidebar-accent: oklch(19.85% 0.0243 264.54);
+  --sidebar-accent-foreground: oklch(83.91% 0.0194 196.38);
+  --sidebar-border: oklch(19.85% 0.0243 264.54);
+  --sidebar-ring: oklch(69.71% 0.329 255.85);
 
-  --sidebar: oklch(0.135 0.012 270);
-  --sidebar-foreground: oklch(0.9 0.01 268);
-  --sidebar-primary: oklch(0.72 0.16 272);
-  --sidebar-primary-foreground: oklch(0.16 0.03 270);
-  --sidebar-accent: oklch(0.22 0.016 270);
-  --sidebar-accent-foreground: oklch(0.95 0.008 268);
-  --sidebar-border: oklch(1 0 0 / 7%);
-  --sidebar-ring: oklch(0.66 0.16 272);
+  --card: oklch(9.08% 0.0054 285.82);
+  --card-foreground: oklch(83.91% 0.0194 196.38);
+  --popover: oklch(9.08% 0.0054 285.82);
+  --popover-foreground: oklch(83.91% 0.0194 196.38);
 
-  --brand-1: oklch(0.7 0.18 275);
-  --brand-2: oklch(0.72 0.2 305);
-  --brand-3: oklch(0.8 0.13 210);
+  --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.25);
+  --shadow-sm: 0 1px 3px 0 rgb(0 0 0 / 0.35), 0 1px 2px -1px rgb(0 0 0 / 0.35);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.35), 0 2px 4px -2px rgb(0 0 0 / 0.35);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.35), 0 4px 6px -4px rgb(0 0 0 / 0.35);
+  --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.35), 0 8px 10px -6px rgb(0 0 0 / 0.35);
 
-  --glow: oklch(0.72 0.16 272 / 0.1);
+  --glow: color-mix(in oklch, var(--primary) 7%, transparent);
 }
 
 @layer base {
@@ -170,24 +188,62 @@
 }
 
 @layer components {
-  /* Soft ambient glow behind the chat area. */
+  /* Soft ambient glow behind the chat area. Painted on a fixed layer so it is
+     not repainted while the main area moves (sidebar toggle). */
   .app-backdrop {
-    background-image:
-      radial-gradient(60rem 30rem at 50% -10%, var(--glow), transparent 70%),
-      radial-gradient(40rem 20rem at 100% 100%, color-mix(in oklch, var(--brand-3) 6%, transparent), transparent 70%);
+    position: relative;
+    isolation: isolate;
+  }
+  .app-backdrop::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: radial-gradient(60rem 28rem at 50% -12%, var(--glow), transparent 70%);
   }
 
-  .brand-gradient-text {
-    background-image: linear-gradient(100deg, var(--brand-1), var(--brand-2) 45%, var(--brand-3));
-    background-size: 200% 100%;
+  /* Primary-only brand fill (sky blue, slightly deeper toward the ring hue). */
+  .brand-gradient-bg {
+    background-color: var(--primary);
+    background-image: linear-gradient(140deg, var(--brand-1), var(--brand-2));
+  }
+
+  /* Settled chat turns skip layout and paint while off screen, so long threads
+     stay cheap to reflow (sidebar toggle, window resize). The last two turns
+     (streaming answer + its prompt) stay live. */
+  .chat-turn {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 240px;
+  }
+  .chat-turn:nth-last-child(-n + 2) {
+    content-visibility: visible;
+  }
+
+  /* Live AI title: the new title sweeps in with a primary shimmer. */
+  .title-reveal {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+    background-image: linear-gradient(
+      90deg,
+      currentColor 0%,
+      currentColor 40%,
+      var(--primary) 50%,
+      currentColor 60%,
+      currentColor 100%
+    );
+    background-size: 250% 100%;
+    background-position: 100% 0;
     -webkit-background-clip: text;
     background-clip: text;
-    color: transparent;
-    animation: brand-pan 8s ease-in-out infinite alternate;
-  }
-
-  .brand-gradient-bg {
-    background-image: linear-gradient(135deg, var(--brand-1), var(--brand-2) 55%, var(--brand-3));
+    -webkit-text-fill-color: transparent;
+    animation:
+      title-in 420ms var(--ease-out-drawer) both,
+      title-sweep 1100ms ease-out 120ms both;
   }
 
   /* Diffusion canvas: chars that changed in the latest frame glow, then settle. */
@@ -222,9 +278,22 @@
   }
 }
 
-@keyframes brand-pan {
-  from { background-position: 0% 50%; }
-  to { background-position: 100% 50%; }
+@keyframes title-in {
+  from {
+    opacity: 0;
+    filter: blur(4px);
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
+@keyframes title-sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
 }
 
 @keyframes diffusion-sweep {

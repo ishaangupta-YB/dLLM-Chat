@@ -103,7 +103,7 @@ export const ModelPicker = memo(function ModelPicker({ className }: { className?
                 }}
                 className="items-start gap-3 py-2.5"
               >
-                <span className="brand-gradient-bg mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg text-white">
+                <span className="brand-gradient-bg mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg text-primary-foreground">
                   <SparklesIcon className="size-3.5" />
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">

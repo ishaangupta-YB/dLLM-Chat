@@ -1,12 +1,12 @@
 import { cn } from "@/lib/utils";
 
-/** dLLM Chat logo: a gradient tile with dots resolving into a wave (noise -> signal). */
+/** dLLM Chat logo: a sky-blue tile with dots resolving into a wave (noise -> signal). */
 export function BrandMark({ className }: { className?: string }) {
   return (
     <span
       aria-hidden
       className={cn(
-        "brand-gradient-bg relative inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-[30%] text-white shadow-[0_4px_16px_-4px_var(--brand-2)] ring-1 ring-white/20 ring-inset",
+        "brand-gradient-bg relative inline-flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-[30%] text-primary-foreground shadow-[0_4px_14px_-6px_var(--primary)] ring-1 ring-black/5 ring-inset dark:ring-white/10",
         className,
       )}
     >

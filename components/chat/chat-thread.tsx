@@ -14,7 +14,7 @@ import { useChatStore } from "@/lib/store/chat-store";
 import { AssistantMessage } from "./assistant-message";
 import { ChatEmptyState, type StarterPrompt } from "./empty-state";
 import { UserMessage } from "./user-message";
-import { focusComposer } from "./utils";
+import { focusComposer, switchAppMode } from "./utils";
 
 const EMPTY: string[] = [];
 
@@ -32,7 +32,15 @@ export function ChatThread() {
 
   const onPick = useCallback(
     (p: StarterPrompt) => {
+      if (p.switchToCode) {
+        switchAppMode("code");
+        return;
+      }
       if (p.mode) setSettings({ mode: p.mode });
+      if (p.webSearch) {
+        const tools = useChatStore.getState().settings.tools;
+        setSettings({ tools: { ...tools, enabled: true, webSearch: true } });
+      }
       void send(p.prompt);
       focusComposer();
     },
@@ -52,9 +60,11 @@ export function ChatThread() {
   const lastId = ids[ids.length - 1];
   return (
     <Conversation key={activeId} className="min-h-0" initial="instant">
-      <ConversationContent className="mx-auto w-full max-w-3xl gap-6 px-4 pt-6 pb-10 sm:px-6">
+      <ConversationContent className="mx-auto w-full max-w-[var(--chat-max-w)] gap-6 px-4 pt-6 pb-10 sm:px-6">
         {ids.map((id) => (
-          <MessageRow key={id} conversationId={activeId} messageId={id} isLast={id === lastId} />
+          <div key={id} className="chat-turn">
+            <MessageRow conversationId={activeId} messageId={id} isLast={id === lastId} />
+          </div>
         ))}
       </ConversationContent>
       <ConversationScrollButton
@@ -86,7 +96,7 @@ const MessageRow = memo(function MessageRow({
 
 function ThreadSkeleton() {
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-8 px-4 pt-10 sm:px-6" aria-hidden>
+    <div className="mx-auto flex w-full max-w-[var(--chat-max-w)] flex-1 flex-col gap-8 px-4 pt-10 sm:px-6" aria-hidden>
       <Skeleton className="ml-auto h-10 w-2/5 rounded-2xl" />
       <div className="flex gap-3">
         <Skeleton className="size-7 shrink-0 rounded-[30%]" />

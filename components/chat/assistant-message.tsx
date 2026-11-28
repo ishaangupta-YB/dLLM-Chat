@@ -11,6 +11,7 @@ import {
   MessageResponse,
 } from "@/components/ai-elements/message";
 import { Shimmer } from "@/components/ai-elements/shimmer";
+import { MessageSources, MessageToolCalls } from "@/components/agent-ui/message-tools";
 import { Button } from "@/components/ui/button";
 import { CodeCanvas } from "@/components/code-canvas/code-canvas";
 import { parseSegments } from "@/lib/chat/segments";
@@ -39,6 +40,9 @@ export const AssistantMessage = memo(function AssistantMessage({
   const { regenerate } = useChatController();
   const pending = !!message.pending;
   const diffusingLive = pending && message.mode === "diffusing";
+  const toolCalls = message.toolCalls ?? [];
+  const hasTools = toolCalls.length > 0;
+  const toolsRunning = toolCalls.some((t) => t.status === "running");
 
   // Fade the final markdown in when a diffusion canvas resolves.
   const [wasDiffusing, setWasDiffusing] = useState(diffusingLive);
@@ -56,11 +60,15 @@ export const AssistantMessage = memo(function AssistantMessage({
     <Message from="assistant" className="max-w-full flex-row items-start gap-3">
       <BrandMark className="mt-0.5 hidden size-7 sm:inline-flex" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
+        <MessageToolCalls message={message} />
         <MessageContent className="w-full overflow-visible text-[15px] leading-7">
           {pending && !message.content ? (
-            <Shimmer className="text-sm" duration={1.6}>
-              {message.mode === "diffusing" ? "Diffusing…" : "Thinking…"}
-            </Shimmer>
+            // While tools run, their own status rows show progress.
+            toolsRunning ? null : (
+              <Shimmer className="text-sm" duration={1.6}>
+                {hasTools ? "Writing the answer…" : message.mode === "diffusing" ? "Diffusing…" : "Thinking…"}
+              </Shimmer>
+            )
           ) : diffusingLive ? (
             <DiffusionText text={message.content} />
           ) : (
@@ -102,6 +110,8 @@ export const AssistantMessage = memo(function AssistantMessage({
             </div>
           )}
         </MessageContent>
+
+        <MessageSources message={message} />
 
         {!pending && (message.content || message.durationMs) ? (
           <AssistantFooter message={message} isLast={isLast} onRegenerate={onRegenerate} />
@@ -192,7 +202,7 @@ function AssistantFooter({
       <MessageActions className="-ml-1.5 gap-0.5">
         {message.content && (
           <MessageAction tooltip={copied ? "Copied" : "Copy"} label="Copy response" onClick={onCopy}>
-            {copied ? <CheckIcon className="size-4 text-emerald-500" /> : <CopyIcon className="size-4" />}
+            {copied ? <CheckIcon className="size-4 text-primary" /> : <CopyIcon className="size-4" />}
           </MessageAction>
         )}
         {isLast && (
