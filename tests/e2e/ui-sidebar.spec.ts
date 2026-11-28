@@ -69,10 +69,13 @@ test.describe('persistence', () => {
     await page.getByRole('radio', { name: 'Diffusion' }).click();
     await page.getByRole('combobox', { name: 'Reasoning effort' }).click();
     await page.getByRole('option', { name: /High/ }).click();
-    const fim = page.getByRole('switch', { name: 'FIM autocomplete in code canvas' });
+    // FIM autocomplete lives in the composer's settings menu.
+    await page.getByRole('button', { name: 'Chat settings' }).click();
+    const fim = page.getByRole('menuitemcheckbox', { name: /Code autocomplete \(FIM\)/ });
     await expect(fim).toHaveAttribute('aria-checked', 'true');
     await fim.click();
     await expect(fim).toHaveAttribute('aria-checked', 'false');
+    await page.keyboard.press('Escape');
 
     // Add a message in the active chat.
     await queueChat(page, {
@@ -94,10 +97,12 @@ test.describe('persistence', () => {
     await expect(page.getByRole('button', { name: /^Model: Mercury 2\.5/ })).toBeVisible();
     await expect(page.getByRole('radio', { name: 'Diffusion' })).toHaveAttribute('aria-checked', 'true');
     await expect(page.getByRole('combobox', { name: 'Reasoning effort' })).toContainText('High');
-    await expect(page.getByRole('switch', { name: 'FIM autocomplete in code canvas' })).toHaveAttribute(
+    await page.getByRole('button', { name: 'Chat settings' }).click();
+    await expect(page.getByRole('menuitemcheckbox', { name: /Code autocomplete \(FIM\)/ })).toHaveAttribute(
       'aria-checked',
       'false',
     );
+    await page.keyboard.press('Escape');
     for (const c of three) await expect(item(page, c.title)).toBeVisible();
 
     const s = await readStore(page);
@@ -111,6 +116,18 @@ test.describe('persistence', () => {
       reasoningEffort: 'high',
       fimEnabled: false,
       voiceAutoSpeak: true,
+      // v2 settings (not seeded) are filled with their defaults.
+      appMode: 'chat',
+      tools: {
+        enabled: true,
+        webSearch: true,
+        utilities: true,
+        mcp: { deepwiki: true, context7: true },
+        customMcp: [],
+      },
+      aiTitles: true,
+      voiceEngine: 'browser',
+      agentPreset: 'general',
     });
     const b = s!.state.conversations.b;
     expect(b).toMatchObject({ id: 'b', title: 'Bravo chat' });
@@ -343,7 +360,7 @@ test.describe('sidebar', () => {
 
   test('import adds valid chats; malformed files show an error and do not corrupt state', async ({ page }) => {
     await openApp(page, buildState({ conversations: three.slice(0, 1), activeId: 'a' }));
-    const input = page.locator('input[type="file"][accept*="json"]');
+    const input = page.locator('input[type="file"][accept="application/json,.json"]');
     const snapshot = async () => {
       const convs = (await readStore(page))!.state.conversations;
       return Object.values(convs).map((c) => ({ id: c.id, title: c.title, messages: c.messages.map((m) => [m.id, m.role, m.content]) }));

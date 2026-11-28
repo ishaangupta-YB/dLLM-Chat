@@ -28,9 +28,9 @@ test.describe('empty state', () => {
     await expect(page.getByRole('heading', { name: 'dLLM Chat', level: 1 })).toBeVisible();
     const chips = page.getByRole('button', { name: /Detect a cycle in a linked list/ });
     await expect(chips).toHaveCount(1);
-    await expect(page.getByRole('button', { name: /Watch a story diffuse into place/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Explain diffusion LLMs simply/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Fix a race condition/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Watch a story diffuse/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /What's new in Next.js 16\?/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Build a landing page/ })).toBeVisible();
 
     await queueChat(page, textReply('Here is a cycle detector using Floyd’s algorithm.', { delay: 20 }));
     await page.getByRole('button', { name: /Detect a cycle in a linked list/ }).click();
@@ -58,7 +58,7 @@ test.describe('empty state', () => {
         { event: { t: 'finish', reason: 'stop' } },
       ],
     });
-    await page.getByRole('button', { name: /Watch a story diffuse into place/ }).click();
+    await page.getByRole('button', { name: /Watch a story diffuse/ }).click();
     await expect(lastAssistant(page)).toContainText('The lighthouse keeper heard it.');
     const req = (await chatRequests(page)) as { mode: string }[];
     expect(req[0].mode).toBe('diffusing');
@@ -97,11 +97,17 @@ test.describe('real API', () => {
     await expect(reply).toContainText(/[\d,]+ tok\/s/);
     await expect(reply.getByRole('button', { name: 'Regenerate response' })).toBeVisible();
 
-    // Sidebar entry with a derived title, marked active.
-    const item = page.locator('[data-sidebar="menu-button"][aria-current="page"]');
-    await expect(item).toHaveText(prompt);
+    // After the first reply the AI names the chat (lib/chat/title.ts); the
+    // active sidebar entry and the header show that title live.
+    await expect
+      .poll(async () => ((await activeConversation(page)) as { titleSource?: string } | null)?.titleSource, { timeout: 30_000 })
+      .toBe('ai');
     const conv = await activeConversation(page);
-    expect(conv?.title).toBe(prompt);
+    expect(conv?.title.length).toBeGreaterThan(2);
+    expect(conv?.title).not.toBe(prompt);
+    const item = page.locator('[data-sidebar="menu-button"][aria-current="page"]');
+    await expect(item).toHaveText(conv!.title);
+    await expect(page.locator('header h1')).toHaveText(conv!.title);
     expect(conv?.messages.map((m) => m.role)).toEqual(['user', 'assistant']);
     expect(conv?.messages[1].pending).toBeFalsy();
     expect(conv?.messages[1].content.length).toBeGreaterThan(200);

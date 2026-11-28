@@ -299,11 +299,13 @@ test.describe('FIM autocomplete', () => {
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-checked', 'false');
     await expect(page.getByTestId('code-canvas-fim-status').first()).toContainText('Autocomplete off');
-    // The composer switch mirrors the setting.
-    await expect(page.getByRole('switch', { name: 'FIM autocomplete in code canvas' })).toHaveAttribute(
+    // The composer settings menu mirrors the setting.
+    await page.getByRole('button', { name: 'Chat settings' }).click();
+    await expect(page.getByRole('menuitemcheckbox', { name: /Code autocomplete \(FIM\)/ })).toHaveAttribute(
       'aria-checked',
       'false',
     );
+    await page.keyboard.press('Escape');
     await ed.click();
     await page.keyboard.press('ControlOrMeta+End');
     await page.keyboard.type(' * b\n\nprint(1');

@@ -549,10 +549,16 @@ test.describe('markdown edge cases', () => {
 test('theme toggle switches to dark and persists', async ({ page }) => {
   await openApp(page);
   await page.emulateMedia({ colorScheme: 'light' });
-  const toggle = page.getByRole('button', { name: /theme/i }).first();
-  await toggle.click();
-  const dark = page.getByRole('menuitem', { name: /dark/i });
-  if (await dark.count()) await dark.click();
+  // The theme menu lives in the sidebar footer (the header dropdown is gone).
+  // It is opened from the keyboard because in `next dev` the Next.js dev
+  // indicator sits on top of the bottom-left corner and intercepts clicks.
+  const toggle = page.locator('[data-sidebar="footer"]').getByRole('button', { name: 'Change theme' });
+  await expect(toggle).toBeVisible();
+  await toggle.focus();
+  await page.keyboard.press('Enter');
+  const dark = page.getByRole('menuitem', { name: 'Dark' });
+  await expect(dark).toBeVisible();
+  await dark.click();
   await expect(page.locator('html')).toHaveClass(/dark/);
   await page.reload();
   await waitForApp(page);
