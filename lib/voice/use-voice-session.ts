@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useChatController } from '@/lib/chat/use-chat-controller';
 import { useChatStore } from '@/lib/store/chat-store';
+import { useKeysStore } from '@/lib/store/keys-store';
 import { createVoiceEngine, type VoiceEngine, type VoiceState } from './voice-engine';
 
 const INITIAL: VoiceState = {
@@ -14,6 +15,9 @@ const INITIAL: VoiceState = {
   error: null,
   latencyMs: null,
   micLive: false,
+  engine: 'browser',
+  notice: null,
+  transcribing: false,
 };
 
 declare global {
@@ -32,15 +36,20 @@ export function useVoiceSession(active: boolean) {
   const [state, setState] = useState<VoiceState>(INITIAL);
   const engineRef = useRef<VoiceEngine | null>(null);
   const autoSpeak = useChatStore((s) => s.settings.voiceAutoSpeak);
+  const voiceEngine = useChatStore((s) => s.settings.voiceEngine);
 
   useEffect(() => {
     if (!active) return;
+    // The keys store skips hydration; make sure the ElevenLabs key is loaded.
+    if (!useKeysStore.persist.hasHydrated()) void useKeysStore.persist.rehydrate();
     const engine = createVoiceEngine({
       send,
       stop,
       isBusy: () => useChatStore.getState().streaming !== null,
       getAutoSpeak: () => useChatStore.getState().settings.voiceAutoSpeak,
       onState: setState,
+      engine: voiceEngine === 'elevenlabs' ? 'elevenlabs' : 'browser',
+      getElevenLabsKey: () => useKeysStore.getState().keys.elevenlabs,
     });
     engineRef.current = engine;
     void engine.start();
@@ -52,7 +61,7 @@ export function useVoiceSession(active: boolean) {
       if (engineRef.current === engine) engineRef.current = null;
       if (process.env.NODE_ENV !== 'production') delete window.__voiceTest;
     };
-  }, [active, send, stop]);
+  }, [active, send, stop, voiceEngine]);
 
   useEffect(() => {
     engineRef.current?.setAutoSpeak(autoSpeak);

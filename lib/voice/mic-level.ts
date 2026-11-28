@@ -13,6 +13,8 @@ export interface MicMeter {
   dispose(): void;
   /** For tests/diagnostics: whether a live track is held. */
   readonly live: boolean;
+  /** The live microphone stream (recorded by the ElevenLabs engine), or null. */
+  readonly stream: MediaStream | null;
 }
 
 /** RMS of time-domain samples in [-1, 1]. */
@@ -104,6 +106,9 @@ export function createMicMeter(): MicMeter {
     },
     get live() {
       return !!stream?.getTracks().some((t) => t.readyState === 'live');
+    },
+    get stream() {
+      return stream;
     },
   };
 }

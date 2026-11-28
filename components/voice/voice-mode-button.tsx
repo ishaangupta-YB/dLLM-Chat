@@ -5,6 +5,9 @@ import { AudioLinesIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useHydrated } from '@/hooks/use-hydrated';
+import { useChatStore } from '@/lib/store/chat-store';
+import { useKeysStore } from '@/lib/store/keys-store';
+import { isRecordingSupported } from '@/lib/voice/elevenlabs';
 import { isRecognitionSupported } from '@/lib/voice/recognition';
 import { VoiceOverlay } from './voice-overlay';
 
@@ -19,7 +22,12 @@ export function VoiceModeButton({ disabled }: VoiceModeButtonProps) {
   const [open, setOpen] = useState(false);
   const hydrated = useHydrated();
   // Server render assumes support; the client corrects it after hydration.
-  const supported = useSyncExternalStore(noopSubscribe, isRecognitionSupported, () => true);
+  const browserVoice = useSyncExternalStore(noopSubscribe, isRecognitionSupported, () => true);
+  const canRecord = useSyncExternalStore(noopSubscribe, isRecordingSupported, () => true);
+  const wantsEleven = useChatStore((s) => s.settings.voiceEngine === 'elevenlabs');
+  const hasElevenKey = useKeysStore((s) => !!s.keys.elevenlabs);
+  // ElevenLabs records with MediaRecorder, so it also works where Web Speech is missing (Firefox).
+  const supported = browserVoice || (wantsEleven && hasElevenKey && canRecord);
   const unavailable = !supported;
 
   return (

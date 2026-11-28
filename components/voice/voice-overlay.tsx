@@ -24,6 +24,7 @@ function phaseLabel(s: VoiceState): string {
     case 'starting':
       return 'Starting…';
     case 'listening':
+      if (s.transcribing) return 'Transcribing…';
       return s.interim ? 'Listening…' : 'Listening. Go ahead and speak.';
     case 'thinking':
       return 'Thinking…';
@@ -114,7 +115,9 @@ export function VoiceOverlay({ open, onOpenChange }: VoiceOverlayProps) {
                   <span className="absolute inline-flex size-full rounded-full bg-emerald-500 opacity-60 motion-safe:animate-ping" />
                   <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
                 </span>
-                Mercury 3 · realtime
+                <span data-testid="voice-engine-label">
+                  Mercury 3 · {state.engine === 'elevenlabs' ? 'ElevenLabs' : 'browser voice'}
+                </span>
               </span>
               {state.latencyMs !== null && (
                 <Tooltip>
@@ -191,6 +194,16 @@ export function VoiceOverlay({ open, onOpenChange }: VoiceOverlayProps) {
                 )}
               </div>
             </div>
+
+            {state.notice && !state.error && (
+              <p
+                role="status"
+                data-testid="voice-notice"
+                className="max-w-md rounded-2xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-center text-xs text-pretty text-amber-800 dark:text-amber-200"
+              >
+                {state.notice}
+              </p>
+            )}
 
             {state.error && (
               <div

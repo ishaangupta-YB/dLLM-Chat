@@ -1,13 +1,22 @@
 // Hands-free voice conversation loop:
 //   listening -> (final transcript) -> thinking -> speaking -> listening ...
 //
-// Framework-free; React binds to it through useVoiceSession(). Speech in and
-// out run in the browser (Web Speech API); the text turn goes through the
-// normal chat controller with voice:true (mercury-3 + realtime on the server).
-import { createRecognizer, isRecognitionSupported, type RecognitionErrorInfo } from './recognition';
-import { createSpeaker } from './tts';
+// Framework-free; React binds to it through useVoiceSession(). Two engines:
+// - 'browser' (default): Web Speech API recognition + speechSynthesis.
+// - 'elevenlabs' (BYOK): MediaRecorder + ElevenLabs STT, ElevenLabs TTS per
+//   sentence (Inception's Realtime Voice Assistant cookbook). Falls back to
+//   the browser engine when the key is missing or rejected.
+// The text turn goes through the normal chat controller with voice:true
+// (mercury-3 + realtime on the server).
+import { createRecognizer, isRecognitionSupported, type Recognizer, type RecognitionErrorInfo } from './recognition';
+import { createSpeaker, type Speaker, type SpeakerEvents } from './tts';
 import { createSentenceChunker } from './sentence-chunker';
 import { createMicMeter } from './mic-level';
+import { createElevenLabsRecognizer } from './elevenlabs-recognizer';
+import { createElevenLabsSpeaker } from './elevenlabs-speaker';
+import { isRecordingSupported } from './elevenlabs';
+
+export type VoiceEngineKind = 'browser' | 'elevenlabs';
 
 export type VoicePhase = 'starting' | 'listening' | 'thinking' | 'speaking' | 'paused';
 
@@ -34,6 +43,12 @@ export interface VoiceState {
   latencyMs: number | null;
   /** A level meter is running (mic permission granted). */
   micLive: boolean;
+  /** Engine actually in use (may differ from the setting after a fallback). */
+  engine: VoiceEngineKind;
+  /** Non-blocking notice, e.g. why ElevenLabs fell back to browser voice. */
+  notice: string | null;
+  /** ElevenLabs: the recorded turn is being transcribed. */
+  transcribing: boolean;
 }
 
 export interface TurnResultLike {
@@ -49,6 +64,17 @@ export interface VoiceEngineDeps {
   isBusy: () => boolean;
   getAutoSpeak: () => boolean;
   onState: (s: VoiceState) => void;
+  /** Requested engine. Default 'browser'. */
+  engine?: VoiceEngineKind;
+  /** ElevenLabs key (read on every call, never stored by the engine). */
+  getElevenLabsKey?: () => string | undefined;
+  elevenLabsVoiceId?: string;
+  /** Test seams: replace the ElevenLabs recognizer / speaker factories. */
+  elevenLabs?: {
+    createRecognizer?: typeof createElevenLabsRecognizer;
+    createSpeaker?: typeof createElevenLabsSpeaker;
+    isSupported?: () => boolean;
+  };
 }
 
 export interface VoiceEngine {
@@ -74,7 +100,14 @@ const BARGE_MIN_LEVEL = 0.09;
 const BARGE_HOLD_MS = 350;
 const BARGE_GRACE_MS = 700;
 
+export const ELEVENLABS_FALLBACK_NO_KEY = 'Add an ElevenLabs API key in Settings to use ElevenLabs voice. Using browser voice.';
+export const ELEVENLABS_FALLBACK_AUTH = 'Your ElevenLabs API key was rejected. Using browser voice for now.';
+
 export function createVoiceEngine(deps: VoiceEngineDeps): VoiceEngine {
+  const getKey = () => deps.getElevenLabsKey?.()?.trim() || undefined;
+  const wantsEleven = deps.engine === 'elevenlabs';
+  const elevenSupported = deps.elevenLabs?.isSupported ?? isRecordingSupported;
+  let engine: VoiceEngineKind = wantsEleven && getKey() ? 'elevenlabs' : 'browser';
   const state: VoiceState = {
     phase: 'starting',
     muted: false,
@@ -84,6 +117,9 @@ export function createVoiceEngine(deps: VoiceEngineDeps): VoiceEngine {
     error: null,
     latencyMs: null,
     micLive: false,
+    engine,
+    notice: wantsEleven && engine === 'browser' ? ELEVENLABS_FALLBACK_NO_KEY : null,
+    transcribing: false,
   };
 
   let disposed = false;
@@ -123,7 +159,7 @@ export function createVoiceEngine(deps: VoiceEngineDeps): VoiceEngine {
   let mic = createMicMeter();
   const chunker = createSentenceChunker();
 
-  const speaker = createSpeaker({
+  const speakerEvents: SpeakerEvents = {
     onStart: () => {
       if (disposed) return;
       speakingSince = performance.now();
@@ -139,7 +175,26 @@ export function createVoiceEngine(deps: VoiceEngineDeps): VoiceEngine {
       pulse = 1;
       pulseAt = performance.now();
     },
-  });
+  };
+
+  const makeSpeaker = (): Speaker => {
+    if (engine !== 'elevenlabs') return createSpeaker(speakerEvents);
+    const factory = deps.elevenLabs?.createSpeaker ?? createElevenLabsSpeaker;
+    return factory(
+      {
+        ...speakerEvents,
+        onAuthError: (_err, unspoken) => {
+          fallbackToBrowser(ELEVENLABS_FALLBACK_AUTH);
+          if (state.phase === 'speaking' || state.phase === 'thinking') {
+            for (const s of unspoken) speaker.speak(s);
+            if (!speaker.speaking && responseDone) listen();
+          }
+        },
+      },
+      { getKey, voiceId: deps.elevenLabsVoiceId },
+    );
+  };
+  let speaker = makeSpeaker();
 
   const cancelSpeech = () => {
     suppressIdle = true;
@@ -147,15 +202,61 @@ export function createVoiceEngine(deps: VoiceEngineDeps): VoiceEngine {
     suppressIdle = false;
   };
 
-  const recognizer = createRecognizer({
-    onInterim: (text) => {
+  const recognizerEvents = {
+    onInterim: (text: string) => {
       if (state.phase === 'listening') set({ interim: text });
     },
     onActivity: () => {
       lastActivity = performance.now();
     },
-    onEnd: (transcript, err) => handleRecognitionEnd(transcript, err),
-  });
+    onEnd: (transcript: string, err: RecognitionErrorInfo | null) => {
+      if (state.transcribing) set({ transcribing: false });
+      handleRecognitionEnd(transcript, err);
+    },
+  };
+
+  const makeRecognizer = (): Recognizer => {
+    if (engine !== 'elevenlabs') return createRecognizer(recognizerEvents);
+    const factory = deps.elevenLabs?.createRecognizer ?? createElevenLabsRecognizer;
+    return factory(
+      {
+        ...recognizerEvents,
+        onTranscribing: () => {
+          if (state.phase === 'listening') set({ transcribing: true, interim: '' });
+        },
+        onAuthError: () => {
+          set({ transcribing: false });
+          fallbackToBrowser(ELEVENLABS_FALLBACK_AUTH);
+          if (state.phase === 'listening') {
+            if (isRecognitionSupported()) later(listen, 30);
+            else pauseUnsupported();
+          }
+        },
+      },
+      { getKey, getStream: () => mic.stream, getLevel: () => (state.muted ? 0 : mic.level) },
+    );
+  };
+  let recognizer = makeRecognizer();
+
+  function pauseUnsupported() {
+    set({
+      phase: 'paused',
+      error: { kind: 'unsupported', message: 'Voice mode needs Chrome, Edge or Safari.', retryable: false },
+    });
+  }
+
+  /** Switch to the browser engine (missing/rejected key, no MediaRecorder). */
+  function fallbackToBrowser(notice: string) {
+    if (engine === 'browser') return;
+    engine = 'browser';
+    recognizer.abort();
+    suppressIdle = true;
+    speaker.dispose();
+    suppressIdle = false;
+    recognizer = makeRecognizer();
+    speaker = makeSpeaker();
+    set({ engine, notice, transcribing: false });
+  }
 
   function listen() {
     if (disposed) return;
@@ -166,7 +267,7 @@ export function createVoiceEngine(deps: VoiceEngineDeps): VoiceEngine {
     stopBargeWatch();
     listenStartedAt = performance.now();
     lastActivity = 0;
-    set({ phase: 'listening', interim: '' });
+    set({ phase: 'listening', interim: '', transcribing: false });
     if (!recognizer.start()) {
       quickEnds++;
       if (quickEnds > 5) {
@@ -325,17 +426,25 @@ export function createVoiceEngine(deps: VoiceEngineDeps): VoiceEngine {
   }
 
   async function start() {
-    if (!isRecognitionSupported()) {
-      set({
-        phase: 'paused',
-        error: { kind: 'unsupported', message: 'Voice mode needs Chrome, Edge or Safari.', retryable: false },
-      });
+    if (engine === 'elevenlabs' && !elevenSupported()) {
+      fallbackToBrowser('This browser can’t record audio for ElevenLabs. Using browser voice.');
+    }
+    if (engine === 'browser' && !isRecognitionSupported()) {
+      pauseUnsupported();
       return;
     }
     Object.assign(state, { phase: 'starting', error: null });
     emitNow(); // synchronously, so a reopened overlay never shows the last session
     const r = await mic.start();
     if (disposed) return;
+    if (engine === 'elevenlabs' && !r.ok && r.reason !== 'permission' && r.reason !== 'no-mic') {
+      // No level meter / stream: ElevenLabs can't record or detect silence.
+      fallbackToBrowser('The microphone stream isn’t available for ElevenLabs. Using browser voice.');
+      if (!isRecognitionSupported()) {
+        pauseUnsupported();
+        return;
+      }
+    }
     if (!r.ok && (r.reason === 'permission' || r.reason === 'no-mic')) {
       set({
         phase: 'paused',
