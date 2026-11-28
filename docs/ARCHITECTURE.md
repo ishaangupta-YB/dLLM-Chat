@@ -1,5 +1,7 @@
 # dLLM Chat architecture
 
+> v2 additions (agent runtime, tools, MCP, presets, coding agent, attachments, ElevenLabs voice, AI titles) are summarised in [ROADMAP-v2.md](ROADMAP-v2.md), which also lists module ownership.
+
 Next.js 16 (App Router) + React 19 + Tailwind v4 + shadcn/ui + shadcn AI Elements, backed by the
 Inception Mercury API. The full API research is in `reports/Inception Mercury API implementation spec.md`.
 
@@ -81,3 +83,20 @@ with `<CodeCanvas>` and puts `<VoiceModeButton>` in the composer.
 
 - `npm test`: vitest unit tests (`tests/unit`).
 - `npm run test:e2e`: Playwright end-to-end tests (`tests/e2e`).
+
+## v2 modules
+
+| Module | Responsibility |
+| --- | --- |
+| `lib/agent/runtime.ts` | Agent loop: streamed tool calls, parallel execution with timeouts, up to N steps, diffusion-aware |
+| `lib/agent/tools/*` | `resolveTools()`: web search, fetch URL, utilities, MCP tools, preset tools |
+| `lib/agent/mcp/*` | MCP client (Streamable HTTP), curated servers, schema conversion |
+| `lib/agent/net/*` | SSRF guard (DNS-pinned) and safe fetch |
+| `lib/agent/presets*` | Cookbook presets: research, clinic, sql |
+| `app/api/title` | AI chat titles (structured outputs) |
+| `app/api/code`, `lib/code-agent/*`, `components/code-agent/*` | Coding agent: file tools, bundling, versions, workspace UI |
+| `app/preview-frame` | Sandboxed preview document with its own CSP (excluded from global headers) |
+| `app/api/mcp/inspect`, `app/api/integrations/test` | Connector test and BYOK key validation |
+| `lib/attachments/*`, `components/attachments/*` | Client-side text extraction and attachment UI |
+| `lib/voice/elevenlabs*` | ElevenLabs STT/TTS engine (BYOK, called directly from the browser) |
+| `lib/store/keys-store.ts` | BYOK keys in `localStorage["dllm-chat:keys"]`, never exported |

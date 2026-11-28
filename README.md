@@ -13,12 +13,18 @@ https://github.com/user-attachments/assets/646b2b61-3ae7-42d8-91bd-28699df7b674
 ## Features
 
 - **Mercury 3** (newest, 1M context) plus Mercury 2.5 and Mercury 2, with selectable reasoning effort (`instant`, `low`, `medium`, `high`).
-- **Streaming and Diffusion modes.** Streaming appends text as it arrives. Diffusion shows each denoising frame of the answer as it settles into place, paced so the effect stays visible.
-- **Editable code canvas.** Code blocks in replies open in an editable, resizable CodeMirror canvas. You can save with the button, with Ctrl/Cmd+S or by clicking outside, and your edits are written back into the chat history. The canvas also has copy, download and maximize.
-- **FIM autocomplete.** Ghost-text suggestions in the canvas come from Mercury Edit (`mercury-edit-2`, fill-in-the-middle). Tab accepts and Esc dismisses. A switch turns it on or off; it is on by default.
-- **Voice mode.** A hands-free conversation loop using browser speech recognition and synthesis. Answers come from a low-latency Mercury voice turn (`realtime`, spoken-style prompt, sentence-by-sentence TTS). If an enterprise Mercury Voice model id is configured, it is used.
-- **Conversation history.** A sidebar groups chats by date, with search, rename, pin, delete, and JSON export/import. History is saved as JSON in `localStorage` after every message.
-- **Security.** The API key is read only on the server. API routes enforce same-origin requests, validate input, cap body size and rate-limit per IP.
+- **Streaming and Diffusion modes.** Streaming appends text as it arrives. Diffusion shows each denoising frame of the answer as it settles into place, paced so the effect stays visible (also between agent tool steps).
+- **Agent tools.** Web search with numbered citations and a sources list (Tavily with your own key, or a free search fallback), page reading, calculator and time, all shown as live tool cards.
+- **MCP connectors.** Free remote MCP servers (DeepWiki, Context7, Exa, Microsoft Learn, Hugging Face, AWS Knowledge, Cloudflare and Astro docs) can be switched on or off, and you can add your own server URL (with SSRF protection and a "test connection" tool list).
+- **Cookbook agents.** Presets built from the Inception cookbooks: Research (search agent), Clinic support (customer support agent with demo data) and SQL analyst (natural-language SQL over a sample database).
+- **Coding agent mode.** A Chat | Code switch opens a Lovable-style builder: chat on the left, live preview and code on the right, file tree, editor with autocomplete, device widths, console, version history and zip download. Previews run in an isolated sandbox. A React/Node sandbox is marked as coming soon.
+- **File attachments.** Attach text, code, CSV, JSON, PDF or DOCX files (drag and drop, paste or picker). Text is extracted in the browser because Mercury 3 is text-only.
+- **Editable code canvas with FIM autocomplete** on every code block in chat (Mercury Edit, fill-in-the-middle).
+- **Voice mode.** Hands-free voice chat with browser speech, or ElevenLabs speech-to-text and text-to-speech with your own key (Realtime Voice Assistant cookbook).
+- **AI chat titles.** After the first reply a second, structured-output call names the chat, and the sidebar updates live.
+- **Conversation history** grouped by date with search, rename, pin, delete and JSON export/import, saved in `localStorage` after every message.
+- **Bring your own keys.** Third-party keys (Tavily, ElevenLabs) are stored only in your browser and never saved on the server.
+- **Security.** The Inception key is server-only. API routes enforce same-origin requests, validate input, cap sizes and rate-limit. Strict CSP, sandboxed previews, untrusted tool output is labelled as data.
 
 ## Getting started
 
